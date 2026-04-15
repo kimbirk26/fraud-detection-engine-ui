@@ -124,7 +124,57 @@ docker run -p 3000:80 fraud-detection-engine-ui
 
 ---
 
+## Architecture
+
+### System context
+
+The UI is the frontend layer of a larger distributed system:
+
+```
+Browser → React UI → Spring Boot API → PostgreSQL
+                                     ↘ Kafka (optional)
+```
+
+Transactions can be submitted synchronously through the UI (immediate result) or ingested asynchronously via Kafka. The UI surfaces the resulting fraud alerts regardless of which path the transaction took.
+
+### Key design decisions
+
+**JWT decoded client-side**
+
+On login the API returns a signed JWT. The UI decodes the payload in the browser (`src/auth/session.tsx`) to extract the user's ID and roles without making an additional `/me` request on every page load. The accepted trade-off is that role changes do not take effect until the token expires — standard behaviour for stateless JWT auth.
+
+**Graceful degradation with `Promise.allSettled`**
+
+The dashboard fetches alerts for each status (`OPEN`, `UNDER_REVIEW`, `RESOLVED`) in parallel. Using `Promise.allSettled` rather than `Promise.all` means a slow or failing status endpoint degrades the relevant tab rather than crashing the whole dashboard.
+
+**Polling over WebSockets**
+
+Live alert updates use a 10-second polling interval while open alerts exist. This was a deliberate pragmatic choice — polling requires no persistent connection or server-side infrastructure. Server-Sent Events or WebSockets would be the natural next step for a production deployment with high alert volume.
+
+**Feature-based folder structure**
+
+```
+src/
+  features/alerts/    ← alert-specific components co-located
+  pages/              ← route-level components
+  components/         ← shared/generic components
+  hooks/              ← shared hooks
+  lib/                ← API client, formatters, shared constants
+  auth/               ← JWT parsing and session management
+  config/             ← route constants, badge config
+```
+
+The intent is that each feature area owns its own components and logic. As the app grows, `features/` expands without polluting the shared `components/` directory.
+
+**Centralised route constants**
+
+All route strings live in `src/config/routes.ts` and are imported wherever a path is needed. A route rename is a one-line change with a compile-time guarantee that all consumers are updated.
+
+---
+
 ## Tech Stack
+
+### Frontend
 
 |           |                                |
 | --------- | ------------------------------ |
@@ -132,4 +182,15 @@ docker run -p 3000:80 fraud-detection-engine-ui
 | Build     | Vite                           |
 | Styling   | Tailwind CSS                   |
 | Routing   | React Router v6                |
+| Testing   | Vitest + Testing Library       |
 | Container | nginx (Alpine)                 |
+
+### Backend (separate repo)
+
+|             |                              |
+| ----------- | ---------------------------- |
+| Framework   | Spring Boot 3                |
+| Language    | Java                         |
+| Database    | PostgreSQL                   |
+| Messaging   | Kafka (optional)             |
+| Auth        | JWT (signed, stateless)      |
