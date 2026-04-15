@@ -1,3 +1,10 @@
+export type Uuid = string
+export type IsoDateTimeString = string
+export type CustomerId = string
+export type MerchantId = string
+export type CurrencyCode = string
+export type CountryCode = string
+
 export type Severity = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH'
 
 export type AlertStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'FALSE_POSITIVE'
@@ -13,43 +20,53 @@ export type TransactionCategory =
   | 'ATM_WITHDRAWAL'
   | 'UNKNOWN'
 
-export interface RuleResult {
+export type UserRole = string
+
+export type AlertCounts = Record<AlertStatus, number>
+
+export type AsyncState<T, E = string> =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; data: T }
+  | { status: 'error'; error: E }
+
+export interface RuleResultDto {
   ruleName: string
   severity: Severity
   reason: string
 }
 
-export interface FraudAlert {
-  id: string
-  transactionId: string
-  customerId: string
-  triggeredRules: RuleResult[]
+export interface FraudAlertDto {
+  id: Uuid
+  transactionId: Uuid
+  customerId: CustomerId
+  triggeredRules: readonly RuleResultDto[]
   highestSeverity: Severity
   status: AlertStatus
-  createdAt: string
+  createdAt: IsoDateTimeString
 }
 
-export interface AuthTokenResponse {
+export interface AuthTokenResponseDto {
   token: string
-  tokenType: string
-  expiresAt: string
+  tokenType: 'Bearer'
+  expiresAt: IsoDateTimeString
 }
 
 export interface JwtClaims {
   sub: string
-  roles?: string[]
-  customerId?: string
+  roles?: readonly UserRole[]
+  customerId?: CustomerId
   exp?: number
   iat?: number
 }
 
-export interface TransactionPayload {
-  customerId: string
+export interface TransactionRequestDto {
+  transactionId?: Uuid
+  customerId: CustomerId
   amount: number
-  merchantId: string
+  merchantId: MerchantId
   merchantName: string
   category: TransactionCategory
-  currency: string
-  countryCode: string
-  transactionId?: string
+  currency: CurrencyCode
+  countryCode: CountryCode
 }

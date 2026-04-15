@@ -1,10 +1,36 @@
 import type {
-  AuthTokenResponse,
-  FraudAlert,
-  TransactionPayload,
+  AlertStatus,
+  AuthTokenResponseDto,
+  FraudAlertDto,
+  Severity,
+  TransactionRequestDto,
 } from './types'
+import { getStoredToken } from '../auth/session'
 
-const BASE = 'http://localhost:8080/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
+if (!API_BASE_URL) {
+  throw new Error('Missing VITE_API_BASE_URL')
+}
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+
+type QueryValue = string | number | boolean | undefined | null
+
+type RequestOptions = {
+  body?: unknown
+  signal?: AbortSignal
+  query?: Record<string, QueryValue>
+}
+
+type ApiErrorPayload = {
+  message?: string
+}
+
+export type AlertFilters = {
+  status?: AlertStatus
+  severity?: Severity
+}
 
 export class ApiError extends Error {
   constructor(
@@ -16,59 +42,148 @@ export class ApiError extends Error {
   }
 }
 
-function getToken(): string | null {
-  return localStorage.getItem('fde-token')
+function getAccessToken(): string | null {
+  return getStoredToken()
 }
 
-async function request<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const token = getToken()
-  if (token) headers['Authorization'] = `Bearer ${token}`
+function buildUrl(path: string, query?: Record<string, QueryValue>): string {
+  const base = API_BASE_URL.endsWith('/') ? API_BASE_URL : `${API_BASE_URL}/`
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path
+  const url = new URL(normalizedPath, base)
 
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined && value !== null) {
+      url.searchParams.set(key, String(value))
+    }
+  }
 
-  // 204 No Content — caller is responsible for typing T as nullable where relevant
-  if (res.status === 204) return null as T
+  return url.toString()
+}
 
-  if (!res.ok) {
-    const payload = await res.json().catch(() => ({})) as { message?: string }
-    throw new ApiError(
-      payload.message ?? `${res.status} ${res.statusText}`,
-      res.status,
+async function parseError(response: Response): Promise<ApiError> {
+  const contentType = response.headers.get('content-type') ?? ''
+
+  if (contentType.includes('application/json')) {
+    const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null
+
+    return new ApiError(
+      payload?.message ?? `${response.status} ${response.statusText}`,
+      response.status,
     )
   }
 
-  return res.json() as Promise<T>
+  const text = await response.text().catch(() => '')
+  return new ApiError(text || `${response.status} ${response.statusText}`, response.status)
 }
 
-export const login = (
+async function request<TResponse>(
+  method: HttpMethod,
+  path: string,
+  options: RequestOptions = {},
+): Promise<TResponse> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  }
+
+  const token = getAccessToken()
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  const timeoutSignal = AbortSignal.timeout(10_000)
+  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
+
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path, options.query), {
+      method,
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      signal,
+    })
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error('Unable to reach the server. Make sure the backend is running.')
+    }
+    throw err
+  }
+
+  if (response.status === 204) {
+    return null as TResponse
+  }
+
+  if (!response.ok) {
+    throw await parseError(response)
+  }
+
+  return response.json() as Promise<TResponse>
+}
+
+export function login(
   username: string,
   password: string,
-): Promise<AuthTokenResponse> =>
-  request<AuthTokenResponse>('POST', '/auth/token', { username, password })
+  signal?: AbortSignal,
+): Promise<AuthTokenResponseDto> {
+  return request<AuthTokenResponseDto>('POST', '/auth/token', {
+    body: { username, password },
+    signal,
+  })
+}
 
-export const getAlertsByStatus = (status: string): Promise<FraudAlert[]> =>
-  request<FraudAlert[]>('GET', `/alerts?status=${status}`)
+export function getAlerts(
+  filters: AlertFilters = {},
+  signal?: AbortSignal,
+): Promise<FraudAlertDto[]> {
+  return request<FraudAlertDto[]>('GET', '/alerts', {
+    query: {
+      status: filters.status,
+      severity: filters.severity,
+    },
+    signal,
+  })
+}
 
-export const getAlertsBySeverity = (severity: string): Promise<FraudAlert[]> =>
-  request<FraudAlert[]>('GET', `/alerts?severity=${severity}`)
+export function getAlertsByStatus(
+  status: AlertStatus,
+  signal?: AbortSignal,
+): Promise<FraudAlertDto[]> {
+  return getAlerts({ status }, signal)
+}
 
-export const getAlert = (id: string): Promise<FraudAlert> =>
-  request<FraudAlert>('GET', `/alerts/${id}`)
+export function getAlertsBySeverity(
+  severity: Severity,
+  signal?: AbortSignal,
+): Promise<FraudAlertDto[]> {
+  return getAlerts({ severity }, signal)
+}
 
-export const getCustomerAlerts = (customerId: string): Promise<FraudAlert[]> =>
-  request<FraudAlert[]>('GET', `/alerts/customer/${encodeURIComponent(customerId)}`)
+export function getAlert(id: string, signal?: AbortSignal): Promise<FraudAlertDto> {
+  return request<FraudAlertDto>('GET', `/alerts/${encodeURIComponent(id)}`, {
+    signal,
+  })
+}
 
-// Returns null (204) when the transaction is clean, FraudAlert when fraud is detected
-export const submitTransaction = (
-  data: TransactionPayload,
-): Promise<FraudAlert | null> =>
-  request<FraudAlert | null>('POST', '/transactions/sync', data)
+export function getCustomerAlerts(
+  customerId: string,
+  signal?: AbortSignal,
+): Promise<FraudAlertDto[]> {
+  return request<FraudAlertDto[]>('GET', `/alerts/customer/${encodeURIComponent(customerId)}`, {
+    signal,
+  })
+}
+
+// Returns null (204) when the transaction is clean,
+// FraudAlertDto when fraud is detected.
+export function submitTransaction(
+  data: TransactionRequestDto,
+  signal?: AbortSignal,
+): Promise<FraudAlertDto | null> {
+  return request<FraudAlertDto | null>('POST', '/transactions/sync', {
+    body: data,
+    signal,
+  })
+}

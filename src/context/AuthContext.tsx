@@ -1,57 +1,61 @@
-import { createContext, useContext, useState } from 'react'
-import type { ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { login as apiLogin } from '../lib/api'
-import type { JwtClaims } from '../lib/types'
-
-interface AuthContextValue {
-  token: string | null
-  user: JwtClaims | null
-  login: (username: string, password: string) => Promise<void>
-  logout: () => void
-}
+import {
+  clearSession,
+  getInitialSession,
+  isTokenExpired,
+  mapClaimsToUser,
+  parseJwtClaims,
+  setStoredToken,
+} from '../auth/session'
+import type { AuthContextValue, AuthProviderProps, AuthState } from '../auth/types'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function parseJwt(token: string): JwtClaims {
-  try {
-    return JSON.parse(atob(token.split('.')[1])) as JwtClaims
-  } catch {
-    return { sub: '' }
-  }
-}
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [authState, setAuthState] = useState<AuthState>(getInitialSession)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem('fde-token'),
+  const logout = useCallback((): void => {
+    setAuthState(clearSession())
+  }, [])
+
+  const login = useCallback(async (username: string, password: string): Promise<void> => {
+    const response = await apiLogin(username, password)
+    const claims = parseJwtClaims(response.token)
+
+    if (!claims || isTokenExpired(claims)) {
+      setAuthState(clearSession())
+      throw new Error('Authentication token is invalid or expired')
+    }
+
+    const user = mapClaimsToUser(claims)
+
+    setStoredToken(response.token)
+    setAuthState({
+      token: response.token,
+      user,
+    })
+  }, [])
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      isAuthenticated: authState.token !== null && authState.user !== null,
+      user: authState.user,
+      login,
+      logout,
+    }),
+    [authState, login, logout],
   )
-  const [user, setUser] = useState<JwtClaims | null>(() => {
-    const saved = localStorage.getItem('fde-token')
-    return saved ? parseJwt(saved) : null
-  })
 
-  const login = async (username: string, password: string): Promise<void> => {
-    const data = await apiLogin(username, password)
-    const claims = parseJwt(data.token)
-    setToken(data.token)
-    setUser(claims)
-    localStorage.setItem('fde-token', data.token)
-  }
-
-  const logout = (): void => {
-    setToken(null)
-    setUser(null)
-    localStorage.removeItem('fde-token')
-  }
-
-  return (
-    <AuthContext.Provider value={{ token, user, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within an AuthProvider')
-  return ctx
+  const context = useContext(AuthContext)
+
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+
+  return context
 }
