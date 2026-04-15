@@ -2,27 +2,24 @@ import { useState } from 'react'
 import type { ChangeEvent, FormEvent, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { submitTransaction } from '../lib/api'
-import type { FraudAlert, Severity, TransactionCategory, TransactionPayload } from '../lib/types'
+import type { FraudAlertDto, TransactionCategory, TransactionRequestDto } from '../lib/types'
+import { SeverityBadge } from '../components/Badge'
+import { INPUT_CLASS, SELECT_CLASS } from '../lib/ui'
+import { ROUTES } from '../config/routes'
 
-const CATEGORIES: TransactionCategory[] = [
-  'GROCERIES', 'FUEL', 'TRANSFER', 'ENTERTAINMENT',
-  'UTILITIES', 'TRAVEL', 'ONLINE_PURCHASE', 'ATM_WITHDRAWAL', 'UNKNOWN',
-]
+const CATEGORIES = [
+  'GROCERIES',
+  'FUEL',
+  'TRANSFER',
+  'ENTERTAINMENT',
+  'UTILITIES',
+  'TRAVEL',
+  'ONLINE_PURCHASE',
+  'ATM_WITHDRAWAL',
+  'UNKNOWN',
+] as const satisfies readonly TransactionCategory[]
 
-interface BadgeConfig {
-  label: string
-  bg: string
-  text: string
-}
-
-const SEVERITY_BADGE: Record<Severity, BadgeConfig> = {
-  HIGH:   { label: 'High',   bg: 'bg-red-100 dark:bg-red-900/30',        text: 'text-red-700 dark:text-red-400' },
-  MEDIUM: { label: 'Medium', bg: 'bg-orange-100 dark:bg-orange-900/30',   text: 'text-orange-700 dark:text-orange-400' },
-  LOW:    { label: 'Low',    bg: 'bg-amber-100 dark:bg-amber-900/30',     text: 'text-amber-700 dark:text-amber-400' },
-  NONE:   { label: 'None',   bg: 'bg-neutral-100 dark:bg-neutral-800/60', text: 'text-neutral-400' },
-}
-
-interface FormState {
+type FormState = {
   customerId: string
   amount: string
   merchantId: string
@@ -34,6 +31,23 @@ interface FormState {
 
 type FieldErrors = Partial<Record<keyof FormState, string>>
 
+type SubmissionResult =
+  | { status: 'idle' }
+  | { status: 'clean' }
+  | { status: 'fraud'; alert: FraudAlertDto }
+
+type FormFieldProps = Readonly<{
+  id: keyof FormState
+  label: string
+  hint?: string
+  error?: string
+  children: ReactNode
+}>
+
+type FraudResultProps = Readonly<{
+  alert: FraudAlertDto
+}>
+
 const INITIAL_FORM: FormState = {
   customerId: '',
   amount: '',
@@ -44,121 +58,152 @@ const INITIAL_FORM: FormState = {
   countryCode: 'ZA',
 }
 
-const INPUT_CLASS =
-  'w-full bg-transparent border border-black/[0.1] dark:border-white/[0.08] text-neutral-900 dark:text-white text-sm px-4 py-3 placeholder-neutral-300 dark:placeholder-neutral-700 focus:outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors'
+function FormField({ id, label, hint, error, children }: FormFieldProps) {
+  const errorId = `${id}-error`
 
-const SELECT_CLASS =
-  'w-full bg-c-body dark:bg-neutral-900 border border-black/[0.1] dark:border-white/[0.08] text-neutral-900 dark:text-white text-sm px-4 py-3 focus:outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors appearance-none'
-
-function FormField({
-  label,
-  hint,
-  error,
-  children,
-}: {
-  label: string
-  hint?: string
-  error?: string
-  children: ReactNode
-}) {
   return (
     <div>
-      <label className="block text-xs text-neutral-500 uppercase tracking-[0.1em] mb-2">
+      <label
+        htmlFor={id}
+        className="mb-2 block text-xs uppercase tracking-[0.1em] text-neutral-500"
+      >
         {label}
         {hint && (
-          <span className="ml-2 normal-case text-neutral-300 dark:text-neutral-700">
-            {hint}
-          </span>
+          <span className="ml-2 normal-case text-neutral-300 dark:text-neutral-700">{hint}</span>
         )}
       </label>
+
       {children}
-      {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
+
+      {error && (
+        <p id={errorId} className="mt-1.5 text-xs text-red-500">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
 
 function CleanResult() {
   return (
-    <div className="border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/30 p-6">
-      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.15em] mb-1">
+    <section className="border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-800/40 dark:bg-emerald-950/30">
+      <p className="mb-1 text-[10px] uppercase tracking-[0.15em] text-emerald-600 dark:text-emerald-400">
         Result
       </p>
-      <p className="text-lg font-light text-emerald-700 dark:text-emerald-300">
-        No fraud detected
-      </p>
-      <p className="text-sm text-emerald-600/70 dark:text-emerald-400/70 mt-1">
+      <p className="text-lg font-light text-emerald-700 dark:text-emerald-300">No fraud detected</p>
+      <p className="mt-1 text-sm text-emerald-600/70 dark:text-emerald-400/70">
         Transaction passed all rules cleanly.
       </p>
-    </div>
+    </section>
   )
 }
 
-function FraudResult({ alert }: { alert: FraudAlert }) {
-  const badge = SEVERITY_BADGE[alert.highestSeverity]
+function FraudResult({ alert }: FraudResultProps) {
+  const ruleCount = alert.triggeredRules.length
+
   return (
-    <div className="border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/20 p-6 space-y-4">
+    <section className="space-y-4 border border-red-200 bg-red-50 p-6 dark:border-red-800/40 dark:bg-red-950/20">
       <div>
-        <p className="text-[10px] text-red-500 uppercase tracking-[0.15em] mb-1">
+        <p className="mb-1 text-[10px] uppercase tracking-[0.15em] text-red-500">
           Result — Fraud Detected
         </p>
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className={`inline-block text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 ${badge.bg} ${badge.text}`}>
-            {badge.label} severity
-          </span>
-          <span className="text-xs text-neutral-400 font-mono">{alert.id}</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <SeverityBadge severity={alert.highestSeverity} />
+          <span className="font-mono text-xs text-neutral-400">{alert.id}</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 text-sm">
+      <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
         <div>
-          <p className="text-[10px] text-neutral-400 uppercase tracking-[0.1em] mb-0.5">Customer</p>
+          <p className="mb-0.5 text-[10px] uppercase tracking-[0.1em] text-neutral-400">Customer</p>
           <p className="font-mono text-[12px] text-neutral-700 dark:text-neutral-300">
             {alert.customerId}
           </p>
         </div>
+
         <div>
-          <p className="text-[10px] text-neutral-400 uppercase tracking-[0.1em] mb-0.5">Status</p>
+          <p className="mb-0.5 text-[10px] uppercase tracking-[0.1em] text-neutral-400">Status</p>
           <p className="text-neutral-700 dark:text-neutral-300">{alert.status}</p>
         </div>
       </div>
 
-      {alert.triggeredRules.length > 0 && (
+      {ruleCount > 0 && (
         <div>
-          <p className="text-[10px] text-neutral-400 uppercase tracking-[0.1em] mb-3">
-            Triggered rules ({alert.triggeredRules.length})
+          <p className="mb-3 text-[10px] uppercase tracking-[0.1em] text-neutral-400">
+            Triggered rules ({ruleCount})
           </p>
+
           <div className="space-y-3">
-            {alert.triggeredRules.map((rule, i) => {
-              const rb = SEVERITY_BADGE[rule.severity]
-              return (
-                <div
-                  key={i}
-                  className="border border-black/[0.07] dark:border-white/[0.06] p-4 bg-white/60 dark:bg-white/[0.03]"
-                >
-                  <div className="flex items-center gap-3 mb-1.5">
-                    <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                      {rule.ruleName}
-                    </span>
-                    <span className={`inline-block text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 ${rb.bg} ${rb.text}`}>
-                      {rb.label}
-                    </span>
-                  </div>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">{rule.reason}</p>
+            {alert.triggeredRules.map((rule) => (
+              <div
+                key={`${rule.ruleName}-${rule.reason}`}
+                className="border border-black/[0.07] bg-white/60 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]"
+              >
+                <div className="mb-1.5 flex items-center gap-3">
+                  <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    {rule.ruleName}
+                  </span>
+                  <SeverityBadge severity={rule.severity} />
                 </div>
-              )
-            })}
+
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">{rule.reason}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       <Link
-        to={`/alerts/${alert.id}`}
-        className="inline-block text-[11px] text-c-accent hover:text-c-accent-h transition-colors"
+        to={ROUTES.ALERT_DETAIL(alert.id)}
+        className="inline-block text-[11px] text-c-accent transition-colors hover:text-c-accent-h focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-c-accent/30"
       >
         View full alert →
       </Link>
-    </div>
+    </section>
   )
+}
+
+function validateForm(values: FormState): FieldErrors {
+  const errors: FieldErrors = {}
+
+  if (!values.customerId.trim()) {
+    errors.customerId = 'Customer ID is required'
+  }
+
+  const amount = Number(values.amount)
+  if (!values.amount || Number.isNaN(amount) || amount <= 0) {
+    errors.amount = 'Amount must be a positive number'
+  }
+
+  if (!values.merchantId.trim()) {
+    errors.merchantId = 'Merchant ID is required'
+  }
+
+  if (!values.merchantName.trim()) {
+    errors.merchantName = 'Merchant name is required'
+  }
+
+  if (values.currency.trim().length !== 3) {
+    errors.currency = '3-character ISO code required'
+  }
+
+  if (values.countryCode.trim().length !== 2) {
+    errors.countryCode = '2-character ISO code required'
+  }
+
+  return errors
+}
+
+function toRequestDto(form: FormState): TransactionRequestDto {
+  return {
+    customerId: form.customerId.trim(),
+    amount: Number(form.amount),
+    merchantId: form.merchantId.trim(),
+    merchantName: form.merchantName.trim(),
+    category: form.category,
+    currency: form.currency.trim().toUpperCase(),
+    countryCode: form.countryCode.trim().toUpperCase(),
+  }
 }
 
 export default function Submit() {
@@ -166,67 +211,65 @@ export default function Submit() {
   const [errors, setErrors] = useState<FieldErrors>({})
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
-  // undefined = not yet submitted | null = clean (204) | FraudAlert = fraud detected
-  const [result, setResult] = useState<FraudAlert | null | undefined>(undefined)
+  const [result, setResult] = useState<SubmissionResult>({ status: 'idle' })
 
-  const set =
-    (field: keyof FormState) =>
-    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setForm((f) => ({ ...f, [field]: e.target.value }))
+  const handleFieldChange =
+    (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      let value = event.target.value
 
-  const validate = (): FieldErrors => {
-    const errs: FieldErrors = {}
-    if (!form.customerId.trim()) errs.customerId = 'Required'
-    const amount = Number(form.amount)
-    if (!form.amount || isNaN(amount) || amount <= 0)
-      errs.amount = 'Must be a positive number'
-    if (!form.merchantId.trim()) errs.merchantId = 'Required'
-    if (!form.merchantName.trim()) errs.merchantName = 'Required'
-    if (form.currency.trim().length !== 3)
-      errs.currency = '3-character ISO code required'
-    if (form.countryCode.trim().length !== 2)
-      errs.countryCode = '2-character ISO code required'
-    return errs
-  }
+      if (field === 'currency' || field === 'countryCode') {
+        value = value.toUpperCase()
+      }
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const errs = validate()
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs)
+      setForm((current) => ({
+        ...current,
+        [field]: value,
+      }))
+
+      setErrors((current) => ({
+        ...current,
+        [field]: undefined,
+      }))
+
+      if (apiError) {
+        setApiError(null)
+      }
+    }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const nextErrors = validateForm(form)
+
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
       return
     }
+
     setErrors({})
     setApiError(null)
-    setResult(undefined)
+    setResult({ status: 'idle' })
     setLoading(true)
 
     try {
-      const payload: TransactionPayload = {
-        customerId:   form.customerId.trim(),
-        amount:       Number(form.amount),
-        merchantId:   form.merchantId.trim(),
-        merchantName: form.merchantName.trim(),
-        category:     form.category,
-        currency:     form.currency.trim().toUpperCase(),
-        countryCode:  form.countryCode.trim().toUpperCase(),
-      }
-      setResult(await submitTransaction(payload))
-    } catch (err) {
-      setApiError(err instanceof Error ? err.message : 'Submission failed')
+      const response = await submitTransaction(toRequestDto(form))
+
+      setResult(response === null ? { status: 'clean' } : { status: 'fraud', alert: response })
+    } catch (error: unknown) {
+      setApiError(error instanceof Error ? error.message : 'Submission failed')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-24">
-      <div className="max-w-2xl mx-auto px-6">
-        <div className="pb-8 border-b border-black/[0.07] dark:border-white/[0.06] mb-8">
-          <p className="text-[10px] text-neutral-400 dark:text-neutral-600 uppercase tracking-[0.15em] mb-1">
+    <div className="min-h-screen px-6 pb-24 pt-24">
+      <div className="mx-auto max-w-2xl">
+        <div className="mb-8 border-b border-black/[0.07] pb-8 dark:border-white/[0.06]">
+          <p className="mb-1 text-[10px] uppercase tracking-[0.15em] text-neutral-400 dark:text-neutral-600">
             Test
           </p>
-          <h1 className="text-2xl font-light text-neutral-900 dark:text-white tracking-tight">
+          <h1 className="text-2xl font-light tracking-tight text-neutral-900 dark:text-white">
             Submit Transaction
           </h1>
           <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
@@ -235,42 +278,116 @@ export default function Submit() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <FormField label="Customer ID" error={errors.customerId}>
-              <input type="text" className={INPUT_CLASS} placeholder="cust_001" value={form.customerId} onChange={set('customerId')} />
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <FormField id="customerId" label="Customer ID" error={errors.customerId}>
+              <input
+                id="customerId"
+                type="text"
+                className={INPUT_CLASS}
+                placeholder="cust_001"
+                value={form.customerId}
+                onChange={handleFieldChange('customerId')}
+                aria-invalid={Boolean(errors.customerId)}
+                aria-describedby={errors.customerId ? 'customerId-error' : undefined}
+              />
             </FormField>
 
-            <FormField label="Amount" error={errors.amount}>
-              <input type="number" step="0.01" min="0.01" className={INPUT_CLASS} placeholder="500.00" value={form.amount} onChange={set('amount')} />
+            <FormField id="amount" label="Amount" error={errors.amount}>
+              <input
+                id="amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                inputMode="decimal"
+                className={INPUT_CLASS}
+                placeholder="500.00"
+                value={form.amount}
+                onChange={handleFieldChange('amount')}
+                aria-invalid={Boolean(errors.amount)}
+                aria-describedby={errors.amount ? 'amount-error' : undefined}
+              />
             </FormField>
 
-            <FormField label="Merchant ID" error={errors.merchantId}>
-              <input type="text" className={INPUT_CLASS} placeholder="merch_xyz" value={form.merchantId} onChange={set('merchantId')} />
+            <FormField id="merchantId" label="Merchant ID" error={errors.merchantId}>
+              <input
+                id="merchantId"
+                type="text"
+                className={INPUT_CLASS}
+                placeholder="merch_xyz"
+                value={form.merchantId}
+                onChange={handleFieldChange('merchantId')}
+                aria-invalid={Boolean(errors.merchantId)}
+                aria-describedby={errors.merchantId ? 'merchantId-error' : undefined}
+              />
             </FormField>
 
-            <FormField label="Merchant Name" error={errors.merchantName}>
-              <input type="text" className={INPUT_CLASS} placeholder="Pick n Pay" value={form.merchantName} onChange={set('merchantName')} />
+            <FormField id="merchantName" label="Merchant Name" error={errors.merchantName}>
+              <input
+                id="merchantName"
+                type="text"
+                className={INPUT_CLASS}
+                placeholder="Pick n Pay"
+                value={form.merchantName}
+                onChange={handleFieldChange('merchantName')}
+                aria-invalid={Boolean(errors.merchantName)}
+                aria-describedby={errors.merchantName ? 'merchantName-error' : undefined}
+              />
             </FormField>
 
-            <FormField label="Category">
-              <select className={SELECT_CLASS} value={form.category} onChange={set('category')}>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
+            <FormField id="category" label="Category">
+              <select
+                id="category"
+                className={SELECT_CLASS}
+                value={form.category}
+                onChange={handleFieldChange('category')}
+              >
+                {CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category.replace(/_/g, ' ')}
+                  </option>
                 ))}
               </select>
             </FormField>
 
-            <FormField label="Currency" hint="ISO 4217" error={errors.currency}>
-              <input type="text" maxLength={3} className={INPUT_CLASS} placeholder="ZAR" value={form.currency} onChange={set('currency')} />
+            <FormField id="currency" label="Currency" hint="ISO 4217" error={errors.currency}>
+              <input
+                id="currency"
+                type="text"
+                maxLength={3}
+                className={INPUT_CLASS}
+                placeholder="ZAR"
+                value={form.currency}
+                onChange={handleFieldChange('currency')}
+                aria-invalid={Boolean(errors.currency)}
+                aria-describedby={errors.currency ? 'currency-error' : undefined}
+              />
             </FormField>
 
-            <FormField label="Country Code" hint="ISO 3166-1 alpha-2" error={errors.countryCode}>
-              <input type="text" maxLength={2} className={INPUT_CLASS} placeholder="ZA" value={form.countryCode} onChange={set('countryCode')} />
+            <FormField
+              id="countryCode"
+              label="Country Code"
+              hint="ISO 3166-1 alpha-2"
+              error={errors.countryCode}
+            >
+              <input
+                id="countryCode"
+                type="text"
+                maxLength={2}
+                className={INPUT_CLASS}
+                placeholder="ZA"
+                value={form.countryCode}
+                onChange={handleFieldChange('countryCode')}
+                aria-invalid={Boolean(errors.countryCode)}
+                aria-describedby={errors.countryCode ? 'countryCode-error' : undefined}
+              />
             </FormField>
           </div>
 
           {apiError && (
-            <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 px-4 py-3">
+            <p
+              role="alert"
+              className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-500 dark:border-red-800/40 dark:bg-red-950/30"
+            >
               {apiError}
             </p>
           )}
@@ -278,15 +395,15 @@ export default function Submit() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-c-accent hover:bg-c-accent-h text-white text-sm font-semibold py-3.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-c-accent py-3.5 text-sm font-semibold text-white transition-colors hover:bg-c-accent-h disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? 'Analysing…' : 'Submit for analysis'}
           </button>
         </form>
 
-        {result !== undefined && (
+        {result.status !== 'idle' && (
           <div className="mt-8">
-            {result === null ? <CleanResult /> : <FraudResult alert={result} />}
+            {result.status === 'clean' ? <CleanResult /> : <FraudResult alert={result.alert} />}
           </div>
         )}
       </div>

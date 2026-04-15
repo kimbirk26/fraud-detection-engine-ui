@@ -1,66 +1,48 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getAlertsByStatus } from '../lib/api'
-import type { AlertStatus, FraudAlert } from '../lib/types'
+import type { AlertCounts, AsyncState, FraudAlertDto } from '../lib/types'
+import { ALERT_STATUSES, EMPTY_ALERT_COUNTS } from '../config/badgeConfig'
 
-const STATUSES: AlertStatus[] = ['OPEN', 'UNDER_REVIEW', 'RESOLVED', 'FALSE_POSITIVE']
+const POLL_INTERVAL_MS = 10_000
 
-type AlertCounts = Record<AlertStatus, number>
+type AlertsData = { alerts: FraudAlertDto[]; counts: AlertCounts }
 
-const EMPTY_COUNTS: AlertCounts = {
-  OPEN: 0,
-  UNDER_REVIEW: 0,
-  RESOLVED: 0,
-  FALSE_POSITIVE: 0,
-}
-
-interface UseAlertsResult {
-  alerts: FraudAlert[]
-  counts: AlertCounts
-  loading: boolean
-  error: string | null
+type UseAlertsResult = {
+  state: AsyncState<AlertsData>
   reload: (silent?: boolean) => Promise<void>
 }
 
 export function useAlerts(): UseAlertsResult {
-  const [alerts, setAlerts] = useState<FraudAlert[]>([])
-  const [counts, setCounts] = useState<AlertCounts>(EMPTY_COUNTS)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [state, setState] = useState<AsyncState<AlertsData>>({ status: 'loading' })
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const reload = useCallback(async (silent = false): Promise<void> => {
-    if (!silent) setLoading(true)
-    setError(null)
+    if (!silent) setState({ status: 'loading' })
 
     try {
-      const settled = await Promise.allSettled(
-        STATUSES.map((s) => getAlertsByStatus(s)),
-      )
+      const settled = await Promise.allSettled(ALERT_STATUSES.map((s) => getAlertsByStatus(s)))
 
       if (settled.every((r) => r.status === 'rejected')) {
         const first = settled[0] as PromiseRejectedResult
-        throw first.reason instanceof Error
-          ? first.reason
-          : new Error('Unable to reach the server')
+        throw first.reason instanceof Error ? first.reason : new Error('Unable to reach the server')
       }
 
-      const newCounts = { ...EMPTY_COUNTS }
-      const combined: FraudAlert[] = []
+      const newCounts = { ...EMPTY_ALERT_COUNTS }
+      const combined: FraudAlertDto[] = []
 
-      STATUSES.forEach((status, i) => {
+      ALERT_STATUSES.forEach((status, i) => {
         const result = settled[i]
-        const batch =
-          result.status === 'fulfilled' ? (result.value ?? []) : []
+        const batch = result.status === 'fulfilled' ? (result.value ?? []) : []
         newCounts[status] = batch.length
         combined.push(...batch)
       })
 
-      setAlerts(combined)
-      setCounts(newCounts)
+      setState({ status: 'success', data: { alerts: combined, counts: newCounts } })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
-    } finally {
-      if (!silent) setLoading(false)
+      setState({
+        status: 'error',
+        error: err instanceof Error ? err.message : 'An unexpected error occurred',
+      })
     }
   }, [])
 
@@ -68,17 +50,19 @@ export function useAlerts(): UseAlertsResult {
     void reload()
   }, [reload])
 
-  // Poll every 10 s while there are open alerts
+  // Poll every 10 s while there are open alerts; re-evaluate when open count changes
+  const openCount = state.status === 'success' ? state.data.counts.OPEN : 0
+
   useEffect(() => {
-    if (counts.OPEN > 0) {
-      pollRef.current = setInterval(() => void reload(true), 10_000)
+    if (openCount > 0) {
+      pollRef.current = setInterval(() => void reload(true), POLL_INTERVAL_MS)
     } else {
       if (pollRef.current) clearInterval(pollRef.current)
     }
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [counts.OPEN, reload])
+  }, [openCount, reload])
 
-  return { alerts, counts, loading, error, reload }
+  return { state, reload }
 }
