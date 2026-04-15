@@ -2,6 +2,18 @@
 
 A React + TypeScript dashboard for the [Fraud Detection Engine](../fraud-detection-engine) backend. Displays real-time fraud alerts, supports status filtering, and includes a transaction submission form for testing the synchronous evaluation endpoint.
 
+## Screenshots
+
+![Sign in](docs/screenshot-1.png)
+
+![Submit transaction](docs/screenshot-2.png)
+
+![Submit transaction — fraud detected](docs/screenshot-3.png)
+
+![Submit transaction — no fraud detected (detail)](docs/screenshot-4.png)
+
+![Dashboard](docs/screenshot-5.png)
+
 ---
 
 ## Prerequisites
@@ -24,6 +36,7 @@ docker compose up --build
 ```
 
 > **Without Kafka:** Start only Postgres, then run the app with the local profile:
+>
 > ```bash
 > docker compose up postgres -d
 > SPRING_PROFILES_ACTIVE=local ./mvnw spring-boot:run
@@ -32,7 +45,7 @@ docker compose up --build
 The backend starts on `http://localhost:8080`. The local profile bootstraps three users automatically:
 
 | Username           | Password        | Access                          |
-|--------------------|-----------------|---------------------------------|
+| ------------------ | --------------- | ------------------------------- |
 | `analyst`          | `analyst_pass`  | Submit transactions, all alerts |
 | `admin`            | `admin_pass`    | Full access                     |
 | `customer_cust001` | `customer_pass` | Own alerts only (`CUST001`)     |
@@ -44,11 +57,20 @@ Sign in to the UI with any of these credentials.
 ## Running the UI
 
 ```bash
+# Copy environment variables (only needed once)
+cp .env.example .env
+
 npm install
 npm run dev
 ```
 
 The app starts at `http://localhost:5173`, which is already in the backend's CORS allowed origins.
+
+The only required environment variable is:
+
+| Variable            | Default                        | Description                                |
+| ------------------- | ------------------------------ | ------------------------------------------ |
+| `VITE_API_BASE_URL` | `http://localhost:8080/api/v1` | Base URL of the fraud-detection-engine API |
 
 ---
 
@@ -73,10 +95,10 @@ cp .env.example .env
 docker compose up --build
 ```
 
-| Service  | URL                       |
-|----------|---------------------------|
-| UI       | `http://localhost:3000`   |
-| Backend  | `http://localhost:8080`   |
+| Service | URL                     |
+| ------- | ----------------------- |
+| UI      | `http://localhost:3000` |
+| Backend | `http://localhost:8080` |
 
 The UI waits for the backend's `/actuator/health` endpoint to report `UP` before starting, so everything comes up in the right order.
 
@@ -93,21 +115,21 @@ docker run -p 3000:80 fraud-detection-engine-ui
 
 ## Pages
 
-| Route          | Description                                                             |
-|----------------|-------------------------------------------------------------------------|
-| `/login`       | Sign in with backend credentials                                        |
-| `/dashboard`   | Alert list grouped by status, stat cards, auto-polls while alerts open  |
-| `/alerts/:id`  | Full alert detail — triggered rules, severities, reasons                |
-| `/submit`      | Submit a transaction synchronously and see the fraud result inline      |
+| Route         | Description                                                            |
+| ------------- | ---------------------------------------------------------------------- |
+| `/login`      | Sign in with backend credentials                                       |
+| `/dashboard`  | Alert list grouped by status, stat cards, auto-polls while alerts open |
+| `/alerts/:id` | Full alert detail — triggered rules, severities, reasons               |
+| `/submit`     | Submit a transaction synchronously and see the fraud result inline     |
 
 ---
 
 ## Tech Stack
 
-| | |
-|---|---|
+|           |                                |
+| --------- | ------------------------------ |
 | Framework | React 18 + TypeScript (strict) |
-| Build | Vite |
-| Styling | Tailwind CSS |
-| Routing | React Router v6 |
-| Container | nginx (Alpine) |
+| Build     | Vite                           |
+| Styling   | Tailwind CSS                   |
+| Routing   | React Router v6                |
+| Container | nginx (Alpine)                 |

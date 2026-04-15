@@ -9,9 +9,9 @@ export default {
         mono: ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'monospace'],
       },
       colors: {
-        'c-accent':   'rgb(var(--ca) / <alpha-value>)',
+        'c-accent': 'rgb(var(--ca) / <alpha-value>)',
         'c-accent-h': 'rgb(var(--ca-h) / <alpha-value>)',
-        'c-body':     'rgb(var(--bg-body) / <alpha-value>)',
+        'c-body': 'rgb(var(--bg-body) / <alpha-value>)',
       },
     },
   },
