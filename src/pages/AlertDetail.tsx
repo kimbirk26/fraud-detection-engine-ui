@@ -5,7 +5,7 @@ import { ROUTES } from '../config/routes'
 
 export default function AlertDetail() {
   const { id } = useParams<{ id: string }>()
-  const { state } = useAlert(id ?? '')
+  const { state, reload } = useAlert(id ?? '')
 
   if (!id) return <Navigate to={ROUTES.DASHBOARD} replace />
 
@@ -29,7 +29,9 @@ export default function AlertDetail() {
 
         {state.status === 'error' && <div className="py-8 text-sm text-red-500">{state.error}</div>}
 
-        {state.status === 'success' && <AlertDetailContent alert={state.data} />}
+        {state.status === 'success' && (
+          <AlertDetailContent alert={state.data} onStatusChange={reload} />
+        )}
       </div>
     </div>
   )

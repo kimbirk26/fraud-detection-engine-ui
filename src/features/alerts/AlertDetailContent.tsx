@@ -1,10 +1,14 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { FraudAlertDto, RuleResultDto } from '../../lib/types'
+import type { AlertStatus, FraudAlertDto, RuleResultDto } from '../../lib/types'
 import { StatusBadge, SeverityBadge } from '../../components/Badge'
 import { formatDateTime } from '../../lib/formatters'
+import { updateAlertStatus } from '../../lib/api'
+import { useAuth } from '../../context/AuthContext'
 
 type AlertDetailContentProps = Readonly<{
   alert: FraudAlertDto
+  onStatusChange: () => void
 }>
 
 type DetailFieldProps = Readonly<{
@@ -20,6 +24,26 @@ type SectionCardProps = Readonly<{
   children: ReactNode
   className?: string
 }>
+
+type StatusActionsProps = Readonly<{
+  alertId: string
+  currentStatus: AlertStatus
+  onSuccess: () => void
+}>
+
+const STATUS_LABEL: Record<AlertStatus, string> = {
+  OPEN: 'Open',
+  UNDER_REVIEW: 'Under Review',
+  RESOLVED: 'Resolved',
+  FALSE_POSITIVE: 'False Positive',
+}
+
+const NEXT_STATUSES: Record<AlertStatus, readonly AlertStatus[]> = {
+  OPEN: ['UNDER_REVIEW', 'RESOLVED', 'FALSE_POSITIVE'],
+  UNDER_REVIEW: ['RESOLVED', 'FALSE_POSITIVE'],
+  RESOLVED: [],
+  FALSE_POSITIVE: [],
+}
 
 function SectionCard({ children, className = '' }: SectionCardProps) {
   return (
@@ -52,7 +76,64 @@ function RuleRow({ rule }: RuleRowProps) {
   )
 }
 
-export default function AlertDetailContent({ alert }: AlertDetailContentProps) {
+function StatusActions({ alertId, currentStatus, onSuccess }: StatusActionsProps) {
+  const { user } = useAuth()
+  const [pending, setPending] = useState<AlertStatus | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const canWrite = user?.roles.includes('alerts:write') ?? false
+  const nextStatuses = NEXT_STATUSES[currentStatus]
+
+  if (!canWrite || nextStatuses.length === 0) return null
+
+  async function handleUpdate(status: AlertStatus) {
+    setPending(status)
+    setError(null)
+    try {
+      await updateAlertStatus(alertId, status)
+      onSuccess()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update status')
+    } finally {
+      setPending(null)
+    }
+  }
+
+  return (
+    <SectionCard>
+      <div className="border-b border-black/[0.07] px-6 py-4 dark:border-white/[0.06]">
+        <h2 className="text-xs font-medium uppercase tracking-[0.1em] text-neutral-500">
+          Change Status
+        </h2>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 px-6 py-5">
+        {nextStatuses.map((status) => (
+          <button
+            key={status}
+            type="button"
+            disabled={pending !== null}
+            onClick={() => void handleUpdate(status)}
+            className="border border-black/[0.1] px-4 py-2 text-xs font-medium uppercase tracking-[0.08em] text-neutral-700 transition-colors hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[0.1] dark:text-neutral-300 dark:hover:bg-white/[0.05]"
+          >
+            {pending === status ? 'Saving…' : STATUS_LABEL[status]}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <p
+          role="alert"
+          className="mx-6 mb-5 border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-500 dark:border-red-800/40 dark:bg-red-950/30"
+        >
+          {error}
+        </p>
+      )}
+    </SectionCard>
+  )
+}
+
+export default function AlertDetailContent({ alert, onStatusChange }: AlertDetailContentProps) {
   const ruleCount = alert.triggeredRules.length
 
   return (
@@ -126,6 +207,12 @@ export default function AlertDetailContent({ alert }: AlertDetailContentProps) {
           </div>
         )}
       </SectionCard>
+
+      <StatusActions
+        alertId={alert.id}
+        currentStatus={alert.status}
+        onSuccess={onStatusChange}
+      />
     </div>
   )
 }

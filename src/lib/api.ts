@@ -176,6 +176,17 @@ export function getCustomerAlerts(
   })
 }
 
+export function updateAlertStatus(
+  id: string,
+  status: AlertStatus,
+  signal?: AbortSignal,
+): Promise<FraudAlertDto> {
+  return request<FraudAlertDto>('PATCH', `/alerts/${encodeURIComponent(id)}/status`, {
+    body: { status },
+    signal,
+  })
+}
+
 // Returns null (204) when the transaction is clean,
 // FraudAlertDto when fraud is detected.
 export function submitTransaction(
