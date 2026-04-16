@@ -1,6 +1,6 @@
 # Fraud Detection Engine — UI
 
-A React + TypeScript dashboard for the [Fraud Detection Engine](../fraud-detection-engine) backend. Displays real-time fraud alerts, supports status filtering, and includes a transaction submission form for testing the synchronous evaluation endpoint.
+A React + TypeScript dashboard for the [Fraud Detection Engine](https://github.com/kimbirk26/fraud-detection-engine) backend. Displays real-time fraud alerts, supports status filtering, and includes a transaction submission form for testing the synchronous evaluation endpoint.
 
 ## Screenshots
 
