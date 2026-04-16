@@ -18,7 +18,7 @@ function getInitialTheme(): Theme {
     return saved
   }
 
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return globalThis.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
@@ -44,4 +44,3 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
-

@@ -208,11 +208,7 @@ export default function AlertDetailContent({ alert, onStatusChange }: AlertDetai
         )}
       </SectionCard>
 
-      <StatusActions
-        alertId={alert.id}
-        currentStatus={alert.status}
-        onSuccess={onStatusChange}
-      />
+      <StatusActions alertId={alert.id} currentStatus={alert.status} onSuccess={onStatusChange} />
     </div>
   )
 }

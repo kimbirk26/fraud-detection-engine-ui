@@ -187,10 +187,10 @@ All route strings live in `src/config/routes.ts` and are imported wherever a pat
 
 ### Backend (separate repo)
 
-|             |                              |
-| ----------- | ---------------------------- |
-| Framework   | Spring Boot 3                |
-| Language    | Java                         |
-| Database    | PostgreSQL                   |
-| Messaging   | Kafka (optional)             |
-| Auth        | JWT (signed, stateless)      |
+|           |                         |
+| --------- | ----------------------- |
+| Framework | Spring Boot 3           |
+| Language  | Java                    |
+| Database  | PostgreSQL              |
+| Messaging | Kafka (optional)        |
+| Auth      | JWT (signed, stateless) |
