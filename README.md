@@ -14,6 +14,8 @@ A React + TypeScript dashboard for the [Fraud Detection Engine](https://github.c
 
 ![Dashboard](docs/screenshot-5.png)
 
+![Dashboard](docs/screenshot-6.png)
+
 ---
 
 ## Prerequisites
