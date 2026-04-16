@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { useAlerts } from '../hooks/useAlerts'
 import type { AlertStatus, FraudAlertDto } from '../lib/types'
 import { SeverityBadge } from '../components/Badge'

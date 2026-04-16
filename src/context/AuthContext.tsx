@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { login as apiLogin } from '../lib/api'
 import {
   clearSession,
@@ -9,8 +9,7 @@ import {
   setStoredToken,
 } from '../auth/session'
 import type { AuthContextValue, AuthProviderProps, AuthState } from '../auth/types'
-
-const AuthContext = createContext<AuthContextValue | null>(null)
+import { AuthContext } from './auth'
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [authState, setAuthState] = useState<AuthState>(getInitialSession)
@@ -50,12 +49,3 @@ export function AuthProvider({ children }: AuthProviderProps) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export function useAuth(): AuthContextValue {
-  const context = useContext(AuthContext)
-
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-
-  return context
-}

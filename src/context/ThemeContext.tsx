@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import type { ThemeContextValue } from './theme'
+import { ThemeContext } from './theme'
 
 type Theme = 'light' | 'dark'
 
@@ -7,15 +9,7 @@ type ThemeProviderProps = Readonly<{
   children: ReactNode
 }>
 
-type ThemeContextValue = {
-  theme: Theme
-  setTheme: (theme: Theme) => void
-  toggle: () => void
-}
-
 const THEME_STORAGE_KEY = 'fde-theme'
-
-const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 function getInitialTheme(): Theme {
   const saved = localStorage.getItem(THEME_STORAGE_KEY)
@@ -51,12 +45,3 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
-export function useTheme(): ThemeContextValue {
-  const context = useContext(ThemeContext)
-
-  if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider')
-  }
-
-  return context
-}

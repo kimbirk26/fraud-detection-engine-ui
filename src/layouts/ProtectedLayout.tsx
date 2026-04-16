@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import Navbar from '../components/Navbar'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import { ROUTES } from '../config/routes'
 
 export default function ProtectedLayout() {

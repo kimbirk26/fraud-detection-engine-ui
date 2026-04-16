@@ -4,7 +4,7 @@ import type { AlertStatus, FraudAlertDto, RuleResultDto } from '../../lib/types'
 import { StatusBadge, SeverityBadge } from '../../components/Badge'
 import { formatDateTime } from '../../lib/formatters'
 import { updateAlertStatus } from '../../lib/api'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../context/useAuth'
 
 type AlertDetailContentProps = Readonly<{
   alert: FraudAlertDto
