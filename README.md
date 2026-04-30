@@ -1,5 +1,7 @@
 # Fraud Detection Engine — UI
 
+**Live app:** [fraud-detection-engine-ui.vercel.app](https://fraud-detection-engine-ui.vercel.app)
+
 A React + TypeScript dashboard for the [Fraud Detection Engine](https://github.com/kimbirk26/fraud-detection-engine) backend. Displays real-time fraud alerts, supports status filtering, and includes a transaction submission form for testing the synchronous evaluation endpoint.
 
 ## Screenshots
