@@ -8,6 +8,7 @@ import AlertDetail from './pages/AlertDetail'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 import Submit from './pages/Submit'
+import TransactionStatus from './pages/TransactionStatus'
 import RedirectIfAuthenticated from './routing/RedirectIfAuthenticated'
 import ScrollToTop from './routing/ScrollToTop'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -27,6 +28,7 @@ export default function App() {
                 <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
                 <Route path={ROUTES.ALERT_DETAIL_PATTERN} element={<AlertDetail />} />
                 <Route path={ROUTES.SUBMIT} element={<Submit />} />
+                <Route path={ROUTES.TRANSACTION_STATUS} element={<TransactionStatus />} />
               </Route>
 
               <Route element={<PublicLayout />}>

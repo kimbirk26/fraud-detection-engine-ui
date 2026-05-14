@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import type { ChangeEvent, FormEvent, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { submitTransaction } from '../lib/api'
-import type { FraudAlertDto, TransactionCategory, TransactionRequestDto } from '../lib/types'
+import { submitTransaction, submitTransactionAsync } from '../lib/api'
+import type { FraudAlertDto, TransactionCategory, TransactionRequestDto, Uuid } from '../lib/types'
 import { SeverityBadge } from '../components/Badge'
 import { INPUT_CLASS, SELECT_CLASS } from '../lib/ui'
 import { ROUTES } from '../config/routes'
@@ -31,10 +31,13 @@ type FormState = {
 
 type FieldErrors = Partial<Record<keyof FormState, string>>
 
+type SubmissionMode = 'sync' | 'async'
+
 type SubmissionResult =
   | { status: 'idle' }
   | { status: 'clean' }
   | { status: 'fraud'; alert: FraudAlertDto }
+  | { status: 'accepted'; transactionId: Uuid }
 
 type FormFieldProps = Readonly<{
   id: keyof FormState
@@ -163,6 +166,28 @@ function FraudResult({ alert }: FraudResultProps) {
   )
 }
 
+function AcceptedResult({ transactionId }: { transactionId: Uuid }) {
+  return (
+    <section className="border border-blue-200 bg-blue-50 p-6 dark:border-blue-800/40 dark:bg-blue-950/30">
+      <p className="mb-1 text-[10px] uppercase tracking-[0.15em] text-blue-600 dark:text-blue-400">
+        Result — Accepted
+      </p>
+      <p className="text-lg font-light text-blue-700 dark:text-blue-300">
+        Transaction queued for processing
+      </p>
+      <p className="mt-2 font-mono text-[12px] text-blue-600/70 dark:text-blue-400/70">
+        {transactionId}
+      </p>
+      <Link
+        to={`${ROUTES.TRANSACTION_STATUS}?id=${encodeURIComponent(transactionId)}`}
+        className="mt-3 inline-block text-[11px] text-c-accent transition-colors hover:text-c-accent-h focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-c-accent/30"
+      >
+        Check status →
+      </Link>
+    </section>
+  )
+}
+
 function validateForm(values: FormState): FieldErrors {
   const errors: FieldErrors = {}
 
@@ -207,6 +232,7 @@ function toRequestDto(form: FormState): TransactionRequestDto {
 }
 
 export default function Submit() {
+  const [mode, setMode] = useState<SubmissionMode>('sync')
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [loading, setLoading] = useState(false)
@@ -252,9 +278,13 @@ export default function Submit() {
     setLoading(true)
 
     try {
-      const response = await submitTransaction(toRequestDto(form))
-
-      setResult(response === null ? { status: 'clean' } : { status: 'fraud', alert: response })
+      if (mode === 'async') {
+        const response = await submitTransactionAsync(toRequestDto(form))
+        setResult({ status: 'accepted', transactionId: response.transactionId })
+      } else {
+        const response = await submitTransaction(toRequestDto(form))
+        setResult(response === null ? { status: 'clean' } : { status: 'fraud', alert: response })
+      }
     } catch (error: unknown) {
       setApiError(error instanceof Error ? error.message : 'Submission failed')
     } finally {
@@ -273,11 +303,39 @@ export default function Submit() {
             Submit Transaction
           </h1>
           <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-            Submit a transaction synchronously and see whether the engine flags it.
+            Submit a transaction for fraud analysis.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <fieldset className="flex gap-4">
+            <legend className="mb-2 block text-xs uppercase tracking-[0.1em] text-neutral-500">
+              Mode
+            </legend>
+            <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer">
+              <input
+                type="radio"
+                name="mode"
+                value="sync"
+                checked={mode === 'sync'}
+                onChange={() => setMode('sync')}
+                className="accent-c-accent"
+              />
+              Synchronous
+            </label>
+            <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer">
+              <input
+                type="radio"
+                name="mode"
+                value="async"
+                checked={mode === 'async'}
+                onChange={() => setMode('async')}
+                className="accent-c-accent"
+              />
+              Asynchronous
+            </label>
+          </fieldset>
+
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <FormField id="customerId" label="Customer ID" error={errors.customerId}>
               <input
@@ -397,13 +455,17 @@ export default function Submit() {
             disabled={loading}
             className="w-full bg-c-accent py-3.5 text-sm font-semibold text-white transition-colors hover:bg-c-accent-h disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? 'Analysing…' : 'Submit for analysis'}
+            {loading ? 'Submitting…' : mode === 'async' ? 'Submit async' : 'Submit for analysis'}
           </button>
         </form>
 
         {result.status !== 'idle' && (
           <div className="mt-8">
-            {result.status === 'clean' ? <CleanResult /> : <FraudResult alert={result.alert} />}
+            {result.status === 'clean' && <CleanResult />}
+            {result.status === 'fraud' && <FraudResult alert={result.alert} />}
+            {result.status === 'accepted' && (
+              <AcceptedResult transactionId={result.transactionId} />
+            )}
           </div>
         )}
       </div>

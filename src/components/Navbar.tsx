@@ -14,6 +14,7 @@ const SCROLL_THRESHOLD = 24
 const NAV_LINKS: NavLinkDef[] = [
   { label: 'Dashboard', to: ROUTES.DASHBOARD },
   { label: 'Submit Transaction', to: ROUTES.SUBMIT },
+  { label: 'Transaction Status', to: ROUTES.TRANSACTION_STATUS },
 ]
 
 function NavLogo() {

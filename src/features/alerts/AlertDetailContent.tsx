@@ -66,11 +66,14 @@ function DetailField({ label, children }: DetailFieldProps) {
 
 function RuleRow({ rule }: RuleRowProps) {
   return (
-    <div className="grid grid-cols-1 items-start gap-2 px-6 py-4 sm:grid-cols-[1fr_100px_1fr] sm:gap-4">
+    <div className="grid grid-cols-1 items-start gap-2 px-6 py-4 sm:grid-cols-[1fr_100px_60px_1fr] sm:gap-4">
       <span className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
         {rule.ruleName}
       </span>
       <SeverityBadge severity={rule.severity} />
+      <span className="font-mono text-sm font-medium text-neutral-700 dark:text-neutral-300">
+        {rule.score}
+      </span>
       <span className="text-sm text-neutral-500 dark:text-neutral-400">{rule.reason}</span>
     </div>
   )
@@ -180,6 +183,16 @@ export default function AlertDetailContent({ alert, onStatusChange }: AlertDetai
         <DetailField label="Status">
           <StatusBadge status={alert.status} />
         </DetailField>
+
+        <DetailField label="Total Score">
+          <span className="font-mono text-[12px] font-medium">{alert.totalScore}</span>
+        </DetailField>
+
+        {alert.correlationGroupId && (
+          <DetailField label="Correlation Group">
+            <span className="break-all font-mono text-[12px]">{alert.correlationGroupId}</span>
+          </DetailField>
+        )}
       </SectionCard>
 
       <SectionCard>
@@ -195,9 +208,10 @@ export default function AlertDetailContent({ alert, onStatusChange }: AlertDetai
           </div>
         ) : (
           <div className="divide-y divide-black/[0.05] dark:divide-white/[0.04]">
-            <div className="hidden grid-cols-[1fr_100px_1fr] gap-4 px-6 py-3 text-[10px] uppercase tracking-[0.1em] text-neutral-400 dark:text-neutral-600 sm:grid">
+            <div className="hidden grid-cols-[1fr_100px_60px_1fr] gap-4 px-6 py-3 text-[10px] uppercase tracking-[0.1em] text-neutral-400 dark:text-neutral-600 sm:grid">
               <span>Rule</span>
               <span>Severity</span>
+              <span>Score</span>
               <span>Reason</span>
             </div>
 

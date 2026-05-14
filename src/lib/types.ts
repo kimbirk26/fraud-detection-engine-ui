@@ -34,6 +34,7 @@ export interface RuleResultDto {
   ruleName: string
   severity: Severity
   reason: string
+  score: number
 }
 
 export interface FraudAlertDto {
@@ -44,6 +45,8 @@ export interface FraudAlertDto {
   highestSeverity: Severity
   status: AlertStatus
   createdAt: IsoDateTimeString
+  totalScore: number
+  correlationGroupId: Uuid | null
 }
 
 export interface AuthTokenResponseDto {
@@ -58,6 +61,18 @@ export interface JwtClaims {
   customerId?: CustomerId
   exp?: number
   iat?: number
+}
+
+export type TransactionState = 'PENDING' | 'CLEAN' | 'FLAGGED'
+
+export interface TransactionStatusDto {
+  transactionId: Uuid
+  status: TransactionState
+  alert?: FraudAlertDto
+}
+
+export interface TransactionAcceptedDto {
+  transactionId: Uuid
 }
 
 export interface TransactionRequestDto {

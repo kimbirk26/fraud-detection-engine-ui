@@ -3,7 +3,9 @@ import type {
   AuthTokenResponseDto,
   FraudAlertDto,
   Severity,
+  TransactionAcceptedDto,
   TransactionRequestDto,
+  TransactionStatusDto,
 } from './types'
 import { getStoredToken } from '../auth/session'
 
@@ -183,6 +185,27 @@ export function updateAlertStatus(
 ): Promise<FraudAlertDto> {
   return request<FraudAlertDto>('PATCH', `/alerts/${encodeURIComponent(id)}/status`, {
     body: { status },
+    signal,
+  })
+}
+
+export function getTransactionStatus(
+  id: string,
+  signal?: AbortSignal,
+): Promise<TransactionStatusDto> {
+  return request<TransactionStatusDto>(
+    'GET',
+    `/transactions/${encodeURIComponent(id)}/status`,
+    { signal },
+  )
+}
+
+export function submitTransactionAsync(
+  data: TransactionRequestDto,
+  signal?: AbortSignal,
+): Promise<TransactionAcceptedDto> {
+  return request<TransactionAcceptedDto>('POST', '/transactions/async', {
+    body: data,
     signal,
   })
 }

@@ -10,7 +10,7 @@ import { ROUTES } from '../config/routes'
 
 function AlertRow({ alert }: { alert: FraudAlertDto }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_100px_100px_100px_60px] gap-2 sm:gap-4 px-6 py-4 items-center">
+    <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_100px_80px_100px_100px_60px] gap-2 sm:gap-4 px-6 py-4 items-center">
       <span
         className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400 truncate"
         title={alert.id}
@@ -21,6 +21,9 @@ function AlertRow({ alert }: { alert: FraudAlertDto }) {
         {alert.customerId}
       </span>
       <SeverityBadge severity={alert.highestSeverity} />
+      <span className="font-mono text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+        {alert.totalScore}
+      </span>
       <span className="text-[11px] text-neutral-400 dark:text-neutral-600 font-mono">
         {alert.triggeredRules.length} rule{alert.triggeredRules.length !== 1 ? 's' : ''}
       </span>
@@ -171,10 +174,11 @@ export default function Dashboard() {
 
           {state.status === 'success' && visibleAlerts.length > 0 && (
             <div className="divide-y divide-black/[0.05] dark:divide-white/[0.04]">
-              <div className="hidden sm:grid grid-cols-[1fr_160px_100px_100px_100px_60px] gap-4 px-6 py-3 text-[10px] text-neutral-400 dark:text-neutral-600 uppercase tracking-[0.1em]">
+              <div className="hidden sm:grid grid-cols-[1fr_160px_100px_80px_100px_100px_60px] gap-4 px-6 py-3 text-[10px] text-neutral-400 dark:text-neutral-600 uppercase tracking-[0.1em]">
                 <span>Alert ID</span>
                 <span>Customer</span>
                 <span>Severity</span>
+                <span>Score</span>
                 <span>Rules</span>
                 <span>Date</span>
                 <span />
